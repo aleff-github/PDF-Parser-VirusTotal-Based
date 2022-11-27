@@ -1,5 +1,5 @@
-# Parser-PDF-VirusTotal-Based
-Parser PDF Based on VirusTotal API
+# PDF-Parser-VirusTotal-based
+PDF Parser based on VirusTotal API
 
 ![](docs/log%20file.png)
 <center>Log file example</center>
