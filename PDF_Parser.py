@@ -2,27 +2,43 @@ import sys
 import requests
 import base64
 import json
-from prettytable import PrettyTable
+import os   
+try:
+    from prettytable import PrettyTable
+except:
+    res = input("You haven't 'prettytable' library, do you want to install it? [yes][nope] default [yes]")
+    if res == "" or res == "yes":
+        os.system("pip install prettytable")
+    else:
+        exit()
 import sys
-from termcolor import colored
-import os
+try:
+    from termcolor import colored
+except:
+    res = input("You haven't 'termcolor' library, do you want to install it? [yes][nope] default [yes]")
+    if res == "" or res == "yes":
+        os.system("pip install termcolor")
+    else:
+        exit()
+
+import platform
+import getpass
 
 
 log_output = ""
 
 def argv_error():
-    print("./script [option] [value] ...")
-    print("-p\t\tUse this argoument for set your PDF path\n    or --path\n")
-    print("-A\t\tUse this argoument for set your VirusTotal API Key\n    or --API-Key\n")
+    print("\n-p\t\tPDF file path to analyze\n    or --path\n")
+    print("-A\t\tSet your VirusTotal API Key\n    or --API-Key\n")
+    print("-gA\t\tPrint your VirusTotal API Key\n    or --Get-API-Key\n")
     print("-v\t\tUse this argoument for view a lot more information\n    or --verbose\n")
-    print("-l\t\tUse this argoument for save in a log file all verbose information\n    or --log\n")
-    print("Examples:")
-    print("$ python3 script.py -p <PDF_DOCUMENT_PATH> -A <VirusTotal_API_Key>")
-    print("\tGeneric example")
-    print("$ python3 script.py -p malicious.pdf -A abcdefg123456789876543234567899876543456789876543456789876543 --verbose")
-    print("\tIt will print everything in output")
-    print("$ python3 script.py -p malicious.pdf -A abcdefg123456789876543234567899876543456789876543456789876543 --log")
-    print("\tIt will print everything in a log file in the same directory where is the script PDF_Parser.py")
+    print("-l\t\tSave in a log file all verbose information\n    or --log\n")
+    print("\nExamples:")
+    print("\nSet your API:\n$ sudo python3 script.py -A <VirusTotal_API_Key>")
+    print("\nSee your API:\n$ sudo python3 script.py -gA")
+    print("\nScan a pdf:\n$ sudo python3 script.py -p malicious.pdf")
+    print("\nVerbose output:\n$ sudo python3 script.py -p malicious.pdf --verbose")
+    print("\nSave a in a log file:\n$ sudo python3 script.py -p malicious.pdf --log")
 
 def generic_error(error: str) -> None:
     print("\nSomething went wrong... check your private key and your pdf path :-/")
@@ -105,7 +121,7 @@ def check_file(FileMD5: str, VirusTotal_API_Key: str) -> str:
 """
 Parserize the response
 """
-def response_parser(response: str, verbose: bool):
+def response_parser(response: str, verbose: bool, File_Path: str):
     response_in_dict = json_load(response)
     antivirus_supported = response_in_dict["data"]["attributes"]["last_analysis_results"]
     
@@ -153,6 +169,42 @@ def response_parser(response: str, verbose: bool):
     if log_output != "":
             log_output += "\n"+print_string
 
+    if malicious > 1:
+        res = input("Do you want to remove the file? [yes][no] default:[yes]")
+        if res == "" or res == "yes":
+            if platform.system() == "Linux":
+                    os.system(f"sudo rm {File_Path}")
+            if platform.system() == "Windows":
+                    os.system(f"rm {File_Path}")
+
+def create_config_file(VirusTotal_API_Key: str) -> None:
+    if check_sudo_permissions():
+        if platform.system() == "Linux":
+            os.system(f"sudo echo '{VirusTotal_API_Key}' > ~/.config/VirusTotal_API")
+            print(f"{os.popen('cat ~/.config/VirusTotal_API').read()[:5]}***", end="")
+        elif platform.system() == "Windows":
+            print("Not yet")
+        else:
+            print("Not yet")
+
+def get_virustotal_api_key() -> str:
+    if check_sudo_permissions():
+        if platform.system() == "Linux":
+            return os.popen('cat ~/.config/VirusTotal_API').read().strip()
+        elif platform.system() == "Windows":
+            print("Not yet")
+            return "-1"
+        else:
+            print("Not yet")
+            return "-1"
+
+def check_sudo_permissions() -> bool:
+    if os.geteuid() == 0:
+        return True
+    else:
+        print("You must run the script with sudo or with elevated permissions.", end="")
+        exit()
+
 if __name__ == "__main__":
 
     File_Path = ""
@@ -163,8 +215,15 @@ if __name__ == "__main__":
     for i in range(1, len(sys.argv)):
         if((sys.argv[i] == "-p" or sys.argv[i] == "--path") and (len(sys.argv) > i+1)):
             File_Path = sys.argv[i+1]
-        elif((sys.argv[i] == "-A" or sys.argv[i] == "--API-Key") and (len(sys.argv) > i+1)):
-            VirusTotal_API_Key = sys.argv[i+1]
+        elif((sys.argv[i] == "-A" or sys.argv[i] == "--API-Key")):
+            if len(sys.argv) != 2:
+                print("For save the API Key run just:\tsudo python3 PDF_Parser.py -A or --API-Key")
+                exit()
+            else:
+                if check_sudo_permissions():
+                    VirusTotal_API_Key = getpass.getpass("Your Secret API Key: ")
+        elif((sys.argv[i] == "-gA" or sys.argv[i] == "--Get-API-Key")):
+            print(get_virustotal_api_key().strip(), end="")
         elif((sys.argv[i] == "-v" or sys.argv[i] == "--verbose")):
             verbose = True
         elif((sys.argv[i] == "-l" or sys.argv[i] == "--log")):
@@ -172,15 +231,20 @@ if __name__ == "__main__":
         elif((sys.argv[i] == "-h" or sys.argv[i] == "--help")):
             argv_error()
             exit()
+    
+    if VirusTotal_API_Key != "":
+        create_config_file(VirusTotal_API_Key)
+    else:
+        VirusTotal_API_Key = get_virustotal_api_key()
+        if VirusTotal_API_Key == "-1": exit()
 
-    if File_Path != "" and VirusTotal_API_Key != "":
+    if File_Path != "":
         init_print = f"Your File: {File_Path}\nYour API: {VirusTotal_API_Key[:5]}***"
         if verbose:
             print(init_print)
         if log:
             log_output += "\n"+init_print
     else:
-        argv_error()
         exit()
 
     response = upload_file(File_Path, VirusTotal_API_Key, verbose)
@@ -204,8 +268,9 @@ if __name__ == "__main__":
     if VirusTotal_response == "-1":
         exit()
 
-    response_parser(VirusTotal_response, verbose)
+    response_parser(VirusTotal_response, verbose, File_Path)
     
-    f = open("PDF_Parser.log", "w")
-    f.write(log_output)
-    f.close()
+    if log:
+        f = open("PDF_Parser.log", "w")
+        f.write(log_output)
+        f.close()
